@@ -3,12 +3,17 @@ using FishNet.Connection;
 using FishNet.Object;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
 
 public class RadarManager : NetworkBehaviour
 {
-    [Header("Параметры радара")]
-    public int radarHalfSize = 10;
+    [Header("Параметры радара по умолчанию")]
+    public int defaultHalfSize = 10;
+    [Header("Слои для обнаружения")]
     public LayerMask detectableLayers;
+
+    private int _currentHalfSize = 10;
+    private NetworkConnection _boostUser = null;
 
     [ServerRpc(RequireOwnership = false)]
     public void RequestRadarData(NetworkConnection requester)
@@ -18,7 +23,6 @@ public class RadarManager : NetworkBehaviour
         GameObject ghost = RoleManager.Instance?.GetPlayerByRole(RoleManager.Role.Gadalka);
         if (ghost == null)
         {
-            Debug.LogError("[RadarManager] Не найден игрок-призрак! Радар будет использовать позицию запрашивающего как центр (это может быть ошибочно)");
             GameObject requesterObj = requester.FirstObject?.gameObject;
             if (requesterObj != null)
                 ghost = requesterObj;
@@ -27,9 +31,9 @@ public class RadarManager : NetworkBehaviour
         }
 
         Vector3 ghostPos = ghost.transform.position;
-        Debug.Log($"[RadarManager] Позиция призрака: {ghostPos}, объект призрака: {ghost.name}");
+        int halfSize = _currentHalfSize;
 
-        bool[,] grid = MapData.Instance.GetLocalGrid(ghostPos, radarHalfSize, out Vector2Int centerGrid);
+        bool[,] grid = MapData.Instance.GetLocalGrid(ghostPos, halfSize, out Vector2Int centerGrid);
 
         List<RadarDynamicObject> dynamicObjects = new List<RadarDynamicObject>();
 
@@ -40,7 +44,7 @@ public class RadarManager : NetworkBehaviour
             color = Color.green
         });
 
-        float worldRadius = radarHalfSize * MapData.Instance.gridSize;
+        float worldRadius = halfSize * MapData.Instance.gridSize;
         Collider[] hits = Physics.OverlapSphere(ghostPos, worldRadius, detectableLayers);
         foreach (var col in hits)
         {
@@ -52,7 +56,7 @@ public class RadarManager : NetworkBehaviour
             {
                 Vector2Int objGrid = MapData.Instance.WorldToGrid(obj.transform.position);
                 Vector2Int localOffset = objGrid - centerGrid;
-                if (Mathf.Abs(localOffset.x) <= radarHalfSize && Mathf.Abs(localOffset.y) <= radarHalfSize)
+                if (Mathf.Abs(localOffset.x) <= halfSize && Mathf.Abs(localOffset.y) <= halfSize)
                 {
                     dynamicObjects.Add(new RadarDynamicObject
                     {
@@ -64,7 +68,7 @@ public class RadarManager : NetworkBehaviour
             }
         }
 
-        int totalSize = radarHalfSize * 2 + 1;
+        int totalSize = halfSize * 2 + 1;
         byte[] gridBytes = new byte[totalSize * totalSize];
         for (int i = 0; i < totalSize; i++)
         {
@@ -77,7 +81,7 @@ public class RadarManager : NetworkBehaviour
         RadarData data = new RadarData
         {
             gridData = gridBytes,
-            halfSize = radarHalfSize,
+            halfSize = halfSize,
             dynamicObjects = dynamicObjects,
             centerGrid = centerGrid
         };
@@ -89,5 +93,48 @@ public class RadarManager : NetworkBehaviour
     private void TargetReceiveRadarData(NetworkConnection target, RadarData data)
     {
         RadarUI.Instance?.UpdateRadar(data);
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void CmdActivateRadarBoost(NetworkConnection sender = null)
+    {
+        if (sender == null) return;
+        RoleManager.Role role = RoleManager.Instance.GetPlayerRole(sender);
+        if (role != RoleManager.Role.Prizrak)
+        {
+            Debug.Log("[RadarManager] Не-призрак пытается активировать способность, отклонено");
+            return;
+        }
+
+        if (_boostUser != null)
+        {
+            StopAllCoroutines();
+            if (_boostUser != sender)
+                TargetNotifyRadarBoost(_boostUser, false, 0);
+        }
+
+        _currentHalfSize = 15;
+        _boostUser = sender;
+
+        TargetNotifyRadarBoost(sender, true, 3f);
+
+        StartCoroutine(RestoreRadarAfter(3f));
+    }
+
+    private IEnumerator RestoreRadarAfter(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        _currentHalfSize = defaultHalfSize;
+        if (_boostUser != null)
+        {
+            TargetNotifyRadarBoost(_boostUser, false, 0);
+            _boostUser = null;
+        }
+    }
+
+    [TargetRpc]
+    private void TargetNotifyRadarBoost(NetworkConnection target, bool active, float duration)
+    {
+        RadarUI.Instance?.OnRadarBoost(active, duration);
     }
 }

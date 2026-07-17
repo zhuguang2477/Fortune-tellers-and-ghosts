@@ -262,4 +262,11 @@ public class RoleManager : NetworkBehaviour
         }
         return null;
     }
+
+    public Role GetPlayerRole(NetworkConnection conn)
+    {
+        if (playerRoles.TryGetValue(conn, out Role role))
+            return role;
+        return Role.None;
+    }
 }

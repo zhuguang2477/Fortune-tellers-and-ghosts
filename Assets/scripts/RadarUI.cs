@@ -152,4 +152,18 @@ public class RadarUI : MonoBehaviour
                 if (go != null) Destroy(go);
         }
     }
+
+    public void OnRadarBoost(bool active, float duration)
+    {
+        if (active)
+        {
+            radarContainer.sizeDelta = new Vector2(450, 300);
+            RequestUpdate();
+        }
+        else
+        {
+            radarContainer.sizeDelta = new Vector2(300, 200);
+            RequestUpdate();
+        }
+    }
 }
