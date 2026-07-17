@@ -441,6 +441,10 @@ PrefabInstance:
       propertyPath: _port
       value: 7777
       objectReference: {fileID: 0}
+    - target: {fileID: 5726404550980634623, guid: 396cdc522b655f245a1e85c24504f887, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6794944531075039099, guid: 396cdc522b655f245a1e85c24504f887, type: 3}
       propertyPath: m_Name
       value: MultiRoomNetworkManager

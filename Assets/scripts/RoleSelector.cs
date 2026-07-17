@@ -8,16 +8,13 @@ public class RoleSelector : NetworkBehaviour
     private RoleManager roleManager;
     private bool isInitialized = false;
 
-    // 本地记录自己选了什么，方便按同一个键时取消选择
-    private RoleManager.Role myCurrentRole = RoleManager.Role.None; 
+    private RoleManager.Role myCurrentRole = RoleManager.Role.None;
 
     public override void OnStartClient()
     {
         base.OnStartClient();
 
-        // ─── 关键防御 ───
-        // 如果这个生成的物体不是本地玩家的，直接拦截！不要让它去碰本地的单例 UI
-        if (!IsOwner) return; 
+        if (!IsOwner) return;
 
         if (!TryFindUIManager() || !TryFindRoleManager())
         {
@@ -33,7 +30,7 @@ public class RoleSelector : NetworkBehaviour
         int attempts = 0;
         while (attempts < 10)
         {
-            yield return null; 
+            yield return null;
 
             if (UIManager.Instance != null && TryFindRoleManager())
             {
@@ -42,7 +39,7 @@ public class RoleSelector : NetworkBehaviour
             }
             attempts++;
         }
-        Debug.LogError("【RoleSelector】多次尝试后仍未找到 UIManager 或 RoleManager，UI 初始化失败。");
+        Debug.LogError("【RoleSelector】Не удалось найти UIManager или RoleManager после нескольких попыток, инициализация UI не удалась.");
     }
 
     private bool TryFindUIManager()
@@ -68,33 +65,28 @@ public class RoleSelector : NetworkBehaviour
 
         if (btnGadalka == null || btnPrizrak == null || btnStart == null || statusText == null)
         {
-            Debug.LogError("【RoleSelector】UIManager 中的 UI 元素引用未完全赋值！");
+            Debug.LogError("【RoleSelector】Ссылки на элементы UI в UIManager не полностью назначены!");
             return;
         }
 
-        Debug.Log($"【RoleSelector】本地玩家初始化成功，IsOwner={IsOwner}");
+        Debug.Log($"【RoleSelector】Локальный игрок инициализирован успешно, IsOwner={IsOwner}");
 
-        // 清除旧监听
         btnGadalka.onClick.RemoveAllListeners();
         btnPrizrak.onClick.RemoveAllListeners();
         btnStart.onClick.RemoveAllListeners();
 
-        // 绑定按钮事件
         btnGadalka.onClick.AddListener(() => SelectRole(RoleManager.Role.Gadalka));
         btnPrizrak.onClick.AddListener(() => SelectRole(RoleManager.Role.Prizrak));
         btnStart.onClick.AddListener(RequestStartGame);
 
         btnStart.gameObject.SetActive(false);
-        statusText.text = "请选择职业 (1=占卜师，2=鬼魂，0=取消)";
+        statusText.text = "Выберите класс (1=Гадалка, 2=Призрак, 0=Отмена)";
 
-        // ─── 核心架构 ───
-        // 只有本地客户端才去监听 RoleManager 的网络变量改变，以此来更新本地唯一的 UI 按钮颜色和文本
         RoleManager.OnRoleSelectionResultEvent += OnSelectionResult;
         RoleManager.OnGadalkaOccupiedChangedEvent += OnGadalkaStatusChanged;
         RoleManager.OnPrizrakOccupiedChangedEvent += OnPrizrakStatusChanged;
         RoleManager.OnGameStartedChangedEvent += OnGameStartedChanged;
 
-        // 初始化时根据当前房间状态刷一次 UI
         OnGadalkaStatusChanged(roleManager.GadalkaOccupied);
         OnPrizrakStatusChanged(roleManager.PrizrakOccupied);
 
@@ -106,7 +98,6 @@ public class RoleSelector : NetworkBehaviour
         if (roleManager == null || UIManager.Instance == null) return;
         if (roleManager.GameStarted) return;
 
-        // 如果重复选一样的，就发送取消选择
         if (myCurrentRole == role)
         {
             roleManager.CmdDeselectRole();
@@ -123,25 +114,22 @@ public class RoleSelector : NetworkBehaviour
         roleManager.CmdStartGame();
     }
 
-    // ─── 网络通知回调 ───
     private void OnSelectionResult(bool success, string message)
     {
         if (UIManager.Instance == null) return;
         UIManager.Instance.statusText.text = message;
 
-        // 如果自己选成功了，记录下来；如果失败了，重置
         if (success)
         {
-            if (message.Contains("占卜师")) myCurrentRole = RoleManager.Role.Gadalka;
-            else if (message.Contains("鬼魂")) myCurrentRole = RoleManager.Role.Prizrak;
-            else if (message.Contains("取消")) myCurrentRole = RoleManager.Role.None;
+            if (message.Contains("Гадалка")) myCurrentRole = RoleManager.Role.Gadalka;
+            else if (message.Contains("Призрак")) myCurrentRole = RoleManager.Role.Prizrak;
+            else if (message.Contains("Отмена")) myCurrentRole = RoleManager.Role.None;
         }
     }
 
     private void OnGadalkaStatusChanged(bool occupied)
     {
         if (UIManager.Instance == null) return;
-        // 如果被占用了，且不是自己选的，就把按钮变灰色（或者不可点击）
         UIManager.Instance.btnGadalka.image.color = occupied ? Color.red : Color.white;
         UpdateStartButtonVisibility();
     }
@@ -156,15 +144,14 @@ public class RoleSelector : NetworkBehaviour
     private void UpdateStartButtonVisibility()
     {
         if (UIManager.Instance == null || roleManager == null) return;
-        
-        // 只有两个职业都被占领了，才显示开始按钮
+
         bool bothReady = roleManager.GadalkaOccupied && roleManager.PrizrakOccupied;
         UIManager.Instance.btnStart.gameObject.SetActive(bothReady);
-        
+
         if (bothReady)
-            UIManager.Instance.statusText.text = "双方职业已选好，点击「开始游戏」或按 Enter";
+            UIManager.Instance.statusText.text = "Оба класса выбраны, нажмите «Начать игру» или Enter";
         else
-            UIManager.Instance.statusText.text = "等待所有玩家选择职业...";
+            UIManager.Instance.statusText.text = "Ожидание выбора класса всеми игроками...";
     }
 
     private void OnGameStartedChanged(bool started)
@@ -173,7 +160,7 @@ public class RoleSelector : NetworkBehaviour
         UIManager.Instance.btnStart.gameObject.SetActive(false);
         UIManager.Instance.btnGadalka.interactable = false;
         UIManager.Instance.btnPrizrak.interactable = false;
-        UIManager.Instance.statusText.text = "游戏进行中...";
+        UIManager.Instance.statusText.text = "Игра идёт...";
     }
 
     private void Update()
@@ -192,7 +179,6 @@ public class RoleSelector : NetworkBehaviour
 
     private void OnDestroy()
     {
-        // 仅对本地订阅过事件的本体进行注销，防止内存泄漏
         if (IsOwner)
         {
             RoleManager.OnRoleSelectionResultEvent -= OnSelectionResult;

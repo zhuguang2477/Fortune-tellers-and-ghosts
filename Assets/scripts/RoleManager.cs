@@ -27,7 +27,7 @@ public class RoleManager : NetworkBehaviour
     public Transform gadalkaSpawnPoint;
     public Transform prizrakSpawnPoint;
 
-    [Header("角色预制体（需在 NetworkManager 中注册）")]
+    [Header("Префабы ролей (должны быть зарегистрированы в NetworkManager)")]
     public GameObject gadalkaPrefab;
     public GameObject prizrakPrefab;
 
@@ -92,7 +92,7 @@ public class RoleManager : NetworkBehaviour
         {
             if (kv.Key != sender && kv.Value == selectedRole)
             {
-                TargetRoleSelectionResult(sender, false, "该职业已被其他玩家选择");
+                TargetRoleSelectionResult(sender, false, "Эта профессия уже выбрана другим игроком");
                 return;
             }
         }
@@ -112,7 +112,7 @@ public class RoleManager : NetworkBehaviour
         if (selectedRole == Role.Gadalka) _gadalkaOccupied.Value = true;
         else if (selectedRole == Role.Prizrak) _prizrakOccupied.Value = true;
 
-        TargetRoleSelectionResult(sender, true, $"选择成功，你成为了{(selectedRole == Role.Gadalka ? "占卜师" : "鬼魂")}");
+        TargetRoleSelectionResult(sender, true, $"Выбор успешен, вы стали {(selectedRole == Role.Gadalka ? "Гадалкой" : "Призраком")}");
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -125,7 +125,7 @@ public class RoleManager : NetworkBehaviour
             else if (oldRole == Role.Prizrak) _prizrakOccupied.Value = false;
             playerRoles.Remove(sender);
             if (playerObjects.ContainsKey(sender)) playerObjects.Remove(sender);
-            TargetRoleSelectionResult(sender, true, "已取消选择");
+            TargetRoleSelectionResult(sender, true, "Выбор отменён");
         }
     }
 
@@ -137,16 +137,14 @@ public class RoleManager : NetworkBehaviour
 
         _gameStarted.Value = true;
 
-        // 打印当前场景信息（便于调试）
-        Debug.Log($"[RoleManager] 服务器当前活动场景: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
-        Debug.Log($"[RoleManager] RoleManager 所在场景: {gameObject.scene.name}");
+        Debug.Log($"[RoleManager] Текущая активная сцена на сервере: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
+        Debug.Log($"[RoleManager] Сцена RoleManager: {gameObject.scene.name}");
 
         foreach (var kv in playerRoles)
         {
             NetworkConnection conn = kv.Key;
             Role role = kv.Value;
 
-            // 销毁旧玩家对象
             GameObject oldPlayer = conn.FirstObject?.gameObject;
             if (oldPlayer != null)
             {
@@ -156,36 +154,29 @@ public class RoleManager : NetworkBehaviour
             }
             else
             {
-                Debug.LogWarning($"玩家 {conn.ClientId} 没有有效的 FirstObject，无法销毁");
+                Debug.LogWarning($"У игрока {conn.ClientId} нет действительного FirstObject, невозможно уничтожить");
             }
 
-            // 选择预制体
             GameObject prefabToSpawn = (role == Role.Gadalka) ? gadalkaPrefab : prizrakPrefab;
             if (prefabToSpawn == null)
             {
-                Debug.LogError($"玩家 {conn.ClientId} 的角色 {role} 对应的预制体未设置！");
+                Debug.LogError($"Префаб для роли {role} игрока {conn.ClientId} не установлен!");
                 continue;
             }
 
-            // 生成新对象
             Vector3 spawnPos = (role == Role.Gadalka) ? gadalkaSpawnPoint.position : prizrakSpawnPoint.position;
             GameObject newPlayer = Instantiate(prefabToSpawn, spawnPos, Quaternion.identity);
 
-            // ---- 关键修复：强制清除父物体，确保对象独立于任何父物体 ----
-            // 如果对象被自动设为某个父物体，会导致移动方向错乱和位置同步异常
             newPlayer.transform.parent = null;
-            // -----------------------------------------------------------------
 
-            // 使用指定场景进行 Spawn，确保对象归属为 RoleManager 所在的场景
             InstanceFinder.ServerManager.Spawn(newPlayer, conn, gameObject.scene);
 
             newPlayer.tag = role.ToString();
             playerObjects[conn] = newPlayer;
 
-            Debug.Log($"玩家 {conn.ClientId} 已替换为 {role} 角色，生成于 {spawnPos}，场景: {newPlayer.scene.name}，父物体: {newPlayer.transform.parent}");
+            Debug.Log($"Игрок {conn.ClientId} заменён на роль {role}, создан в {spawnPos}, сцена: {newPlayer.scene.name}, родитель: {newPlayer.transform.parent}");
         }
 
-        // ---- 通知每个客户端刷新层并强制启用渲染器 ----
         foreach (var kv in playerRoles)
         {
             NetworkConnection conn = kv.Key;
@@ -196,7 +187,7 @@ public class RoleManager : NetworkBehaviour
     [TargetRpc]
     private void TargetRefreshClient(NetworkConnection target)
     {
-        Debug.Log("[TargetRefreshClient] 客户端执行刷新");
+        Debug.Log("[TargetRefreshClient] Клиент выполняет обновление");
 
         RefreshAllPlayersLayers();
         EnableAllPlayerRenderers();
@@ -205,7 +196,7 @@ public class RoleManager : NetworkBehaviour
     private void RefreshAllPlayersLayers()
     {
         NetworkObject[] allNetworkObjects = FindObjectsOfType<NetworkObject>();
-        Debug.Log($"[RefreshAllPlayersLayers] 找到 {allNetworkObjects.Length} 个 NetworkObject");
+        Debug.Log($"[RefreshAllPlayersLayers] Найдено {allNetworkObjects.Length} NetworkObject");
 
         foreach (var netObj in allNetworkObjects)
         {
@@ -216,12 +207,12 @@ public class RoleManager : NetworkBehaviour
             int targetLayer = (tag == "Gadalka") ? LayerMask.NameToLayer("Gadalka") : LayerMask.NameToLayer("Prizrak");
             if (targetLayer == -1)
             {
-                Debug.LogError($"[RefreshAllPlayersLayers] 找不到层名称：{tag}，请检查 Project Settings 中的层名称！");
+                Debug.LogError($"[RefreshAllPlayersLayers] Не удалось найти слой с именем: {tag}, проверьте имена слоёв в Project Settings!");
                 continue;
             }
 
             SetLayerRecursively(obj.transform, targetLayer);
-            Debug.Log($"[RefreshAllPlayersLayers] 设置玩家 {obj.name} (Tag={tag}) 的层为 {targetLayer} ({LayerMask.LayerToName(targetLayer)})");
+            Debug.Log($"[RefreshAllPlayersLayers] Установка слоя игрока {obj.name} (Tag={tag}) на {targetLayer} ({LayerMask.LayerToName(targetLayer)})");
         }
     }
 
@@ -237,7 +228,7 @@ public class RoleManager : NetworkBehaviour
             foreach (var rend in renderers)
             {
                 rend.enabled = true;
-                Debug.Log($"[EnableAllPlayerRenderers] 启用渲染器 {rend.name} 在 {obj.name}");
+                Debug.Log($"[EnableAllPlayerRenderers] Включение рендерера {rend.name} на {obj.name}");
             }
         }
     }
@@ -260,5 +251,15 @@ public class RoleManager : NetworkBehaviour
         if (playerRoles.TryGetValue(conn, out Role role))
             return role.ToString();
         return "Unknown";
+    }
+
+    public GameObject GetPlayerByRole(Role role)
+    {
+        foreach (var kv in playerObjects)
+        {
+            if (playerRoles.TryGetValue(kv.Key, out Role r) && r == role)
+                return kv.Value;
+        }
+        return null;
     }
 }

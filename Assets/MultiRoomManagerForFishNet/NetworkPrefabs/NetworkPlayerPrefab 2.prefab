@@ -19,7 +19,7 @@ GameObject:
   - component: {fileID: 679531619577988322}
   m_Layer: 7
   m_Name: NetworkPlayerPrefab 2
-  m_TagString: Player
+  m_TagString: Gadalka
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -79,7 +79,6 @@ MonoBehaviour:
   - {fileID: -2875077322977917243}
   - {fileID: 1236292834782610012}
   - {fileID: 679531619577988322}
-  - {fileID: 0}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -90,7 +89,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584175487773368278
+  _initializedTimestamp: -8584173267614974838
   _localLevelOfDetailCalculationType: 0
   _useLevelOfDetail: 0
   _useRootLevelOfDetail: 1
@@ -109,7 +108,7 @@ MonoBehaviour:
   _spectatorInterpolation: 2
   _enableTeleport: 0
   _teleportThreshold: 1
-  <PrefabId>k__BackingField: 0
+  <PrefabId>k__BackingField: 3
   <SpawnableCollectionId>k__BackingField: 0
   <AssetPathHash>k__BackingField: 13686304293431831580
   SceneId: 0
