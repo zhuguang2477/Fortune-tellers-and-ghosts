@@ -6,34 +6,36 @@ using UnityEngine;
 
 public class Teleporter : NetworkBehaviour
 {
-    [Header("Список точек телепортации")]
+    [Header("Список целевых точек телепорта")]
     public Transform[] targetPoints;
 
-    [Header("Настройки клавиш")]
+    [Header("Клавиша активации")]
     public KeyCode teleportKey = KeyCode.T;
 
     [Header("Радиус обнаружения")]
     public float detectionRadius = 3f;
 
+    [Header("Отладочный режим (временно)")]
+    public bool bypassRoleCheck = false;
+
     private readonly SyncVar<int> _currentTargetIndex = new SyncVar<int>();
-
-    public Transform CurrentTarget => (targetPoints != null && targetPoints.Length > 0 && _currentTargetIndex.Value < targetPoints.Length) 
-        ? targetPoints[_currentTargetIndex.Value] : null;
-
-    public int TargetCount => targetPoints?.Length ?? 0;
-
-    public string GetTargetName(int index)
-    {
-        if (targetPoints == null || index < 0 || index >= targetPoints.Length) return "Без имени";
-        return targetPoints[index] != null ? targetPoints[index].name : $"Цель {index}";
-    }
-
     public int CurrentTargetIndex => _currentTargetIndex.Value;
+
+    public Transform CurrentTarget => targetPoints != null && targetPoints.Length > 0 && _currentTargetIndex.Value < targetPoints.Length 
+        ? targetPoints[_currentTargetIndex.Value] : null;
 
     private void Awake()
     {
+        Debug.Log("[Teleporter] Awake");
         Collider col = GetComponent<Collider>();
-        if (col != null && !col.isTrigger) col.isTrigger = true;
+        if (col != null && !col.isTrigger)
+            col.isTrigger = true;
+        else if (col == null)
+            Debug.LogError("[Teleporter] Нет Collider");
+
+        _currentTargetIndex.OnChange += (prev, next, asServer) => {
+            Debug.Log($"[Teleporter] Изменение индекса цели: {prev} -> {next} (asServer={asServer})");
+        };
 
         if (targetPoints != null && targetPoints.Length > 0)
             _currentTargetIndex.Value = 0;
@@ -45,7 +47,7 @@ public class Teleporter : NetworkBehaviour
 
         if (IsLocalPlayerInRange() && Input.GetKeyDown(teleportKey))
         {
-            Debug.Log("[Teleporter] Нажата клавиша телепортации");
+            Debug.Log("[Teleporter] Клиент нажал клавишу телепорта");
             RequestTeleportServer();
         }
     }
@@ -61,18 +63,21 @@ public class Teleporter : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void CmdChangeTarget(int newIndex, NetworkConnection sender = null)
     {
+        Debug.Log($"[Teleporter] CmdChangeTarget получен, sender={sender?.ClientId}, newIndex={newIndex}");
         if (sender == null) return;
 
         RoleManager.Role role = RoleManager.Instance.GetPlayerRole(sender);
-        if (role != RoleManager.Role.Prizrak)
+        Debug.Log($"[Teleporter] Роль запросившего: {role}, ожидается: Prizrak");
+
+        if (!bypassRoleCheck && role != RoleManager.Role.Prizrak)
         {
-            Debug.Log("[Teleporter] Только Призрак может переключать цели телепортации");
+            Debug.Log("[Teleporter] Только призрак может менять цель, отклонено");
             return;
         }
 
         if (targetPoints == null || targetPoints.Length == 0)
         {
-            Debug.LogWarning("[Teleporter] Нет доступных точек телепортации");
+            Debug.LogWarning("[Teleporter] Нет целевых точек");
             return;
         }
 
@@ -83,12 +88,13 @@ public class Teleporter : NetworkBehaviour
         }
 
         _currentTargetIndex.Value = newIndex;
-        Debug.Log($"[Teleporter] Цель телепортации переключена на {targetPoints[newIndex].name}");
+        Debug.Log($"[Teleporter] Цель переключена на {targetPoints[newIndex].name} (индекс {newIndex})");
     }
 
     [ServerRpc(RequireOwnership = false)]
     private void RequestTeleportServer(NetworkConnection sender = null)
     {
+        Debug.Log($"[Teleporter] RequestTeleportServer вызван, sender={sender?.ClientId}");
         if (sender == null) return;
 
         GameObject playerObj = sender.FirstObject?.gameObject;
@@ -97,7 +103,7 @@ public class Teleporter : NetworkBehaviour
         RoleManager.Role role = RoleManager.Instance?.GetPlayerRole(sender) ?? RoleManager.Role.None;
         if (role != RoleManager.Role.Gadalka)
         {
-            Debug.Log($"[Teleporter] Игрок не-призрак ({role}) пытается телепортироваться, отклонено");
+            Debug.Log($"[Teleporter] Не гадалка ({role}) пытается телепортироваться, отклонено");
             return;
         }
 
@@ -111,7 +117,7 @@ public class Teleporter : NetworkBehaviour
         Transform target = CurrentTarget;
         if (target == null)
         {
-            Debug.LogError("[Teleporter] Текущая цель равна null, телепортация невозможна");
+            Debug.LogError("[Teleporter] Текущая целевая точка равна null");
             return;
         }
 
@@ -140,7 +146,8 @@ public class Teleporter : NetworkBehaviour
             Gizmos.color = Color.cyan;
             foreach (var t in targetPoints)
             {
-                if (t != null) Gizmos.DrawSphere(t.position, 0.5f);
+                if (t != null)
+                    Gizmos.DrawSphere(t.position, 0.5f);
             }
         }
     }
